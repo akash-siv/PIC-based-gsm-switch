@@ -1,0 +1,15 @@
+bit SIM900_isCaller(void) {
+    _SIM900_print("AT+CLIP=1\r\n");
+    return (_SIM900_waitResponse() == SIM900_CALLER);
+}
+
+
+
+
+
+
+
+
+
+
++CLIP: "+919094542118",145,"",,"",0

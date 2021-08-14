@@ -1,0 +1,348 @@
+/*
+ * File:   basic.c
+ * Author: Akash
+ *
+ * Created on December 19, 2017, 6:03 PM
+ */
+
+
+
+
+
+// CONFIG
+#pragma config FOSC = HS       // Oscillator Selection bits (HS oscillator)
+#pragma config WDTE = OFF       // Watchdog Timer Enable bit (WDT disabled)
+#pragma config PWRTE = OFF       // Power-up Timer Enable bit (PWRT enabled)
+#pragma config BOREN = OFF        // Brown-out Reset Enable bit (BOR enabled)
+#pragma config LVP = OFF        // Low-Voltage (Single-Supply) In-Circuit Serial Programming Enable bit (RB3 is digital I/O, HV on MCLR must be used for programming)
+#pragma config CPD = OFF        // Data EEPROM Memory Code Protection bit (Data EEPROM code protection off)
+#pragma config WRT = OFF        // Flash Program Memory Write Enable bits (Write protection off; all program memory may be written to by EECON control)
+#pragma config CP = OFF         // Flash Program Memory Code Protection bit (Code protection off)
+//End of CONFIG registers
+ 
+#define _XTAL_FREQ 20000000
+
+ 
+#define SIM900_OK 1
+#define SIM900_READY 2
+#define SIM900_FAIL 3
+#define SIM900_RING 4
+#define SIM900_NC 5
+#define SIM900_UNLINK 6
+
+#include <xc.h>
+ 
+// Wait for any response on the input
+inline unsigned char _SIM900_waitResponse(void);
+    int recv;
+    char p =1;
+ 
+
+//***Initialize UART for SIM900**//
+void Initialize_SIM900(void)
+{
+    //****Setting I/O pins for UART****//
+    TRISC6 = 0; // TX Pin set as output
+    TRISC7 = 1; // RX Pin set as input
+    TRISB0 = 0;
+    TRISB1 = 0;
+    RB0=0;
+    RB1=0;
+    //________I/O pins set __________//
+    
+    /**Initialize SPBRG register for required 
+    baud rate and set BRGH for fast baud_rate**/
+    SPBRG = 129; //SIM900 operates at 9600 Baud rate so 129
+    BRGH  = 1;  // for high baud_rate
+    //_________End of baud_rate setting_________//
+    
+    //****Enable Asynchronous serial port*******//
+    SYNC  = 0;    // Asynchronous
+    SPEN  = 1;    // Enable serial port pins
+    //_____Asynchronous serial port enabled_______//
+    //**Lets prepare for transmission & reception**//
+    TXEN  = 1;    // enable transmission
+    CREN  = 1;    // enable reception
+    //__UART module up and ready for transmission and reception__//
+    
+    //**Select 8-bit mode**//  
+    TX9   = 0;    // 8-bit reception selected
+    RX9   = 0;    // 8-bit reception mode selected
+    //__8-bit mode selected__//     
+}
+//________UART module Initialized__________//
+ 
+ 
+//**Function to send one byte of date to UART**//
+void _SIM900_putch(char bt)  
+{
+    while(!TXIF);  // hold the program till TX buffer is free
+    TXREG = bt; //Load the transmitter buffer with the received value
+}
+//_____________End of function________________//
+ 
+ 
+//**Function to get one byte of date from UART**//
+char _SIM900_getch()   
+{
+    if(OERR) // check for Error 
+    {
+        CREN = 0; //If error -> Reset 
+        CREN = 1; //If error -> Reset 
+    }
+    
+    while(!RCIF);  // hold the program till RX buffer is free
+    
+    return RCREG; //receive the value and send it to main function
+}
+//_____________End of function________________//
+ 
+ 
+//**Function to convert string to byte**//
+void SIM900_send_string(char* st_pt)
+{
+    while(*st_pt) //if there is a char
+        _SIM900_putch(*st_pt++); //process it as a byte data
+}
+//___________End of function______________//
+//**End of modified Codes**//
+ 
+void _SIM900_print(unsigned const char *ptr) {
+    while (*ptr != 0) {
+        _SIM900_putch(*ptr++);
+    }
+}
+ 
+inline unsigned char _SIM900_waitResponse(void) {
+    unsigned char so_far[6] = {0,0,0,0,0,0};
+    unsigned const char lengths[6] = {2,12,5,4,6,6};
+    unsigned const char* strings[6] = {"OK", "+CPIN: READY", "ERROR", "RING", "NO CARRIER", "Unlink"};
+    unsigned const char responses[6] = {SIM900_OK, SIM900_READY, SIM900_FAIL, SIM900_RING, SIM900_NC, SIM900_UNLINK};
+    unsigned char received;
+    unsigned char response;
+    char continue_loop = 1;
+    while (continue_loop) {
+        received = _SIM900_getch();
+        for (unsigned char i = 0; i < 6; i++) {
+            if (strings[i][so_far[i]] == received) {
+                so_far[i]++;
+                if (so_far[i] == lengths[i]) {
+                    response = responses[i];
+                    continue_loop = 0;
+                }
+            } else {
+                so_far[i] = 0;
+            }
+        }
+    }
+    return response;
+
+}
+ 
+void main()
+{   
+   
+    Initialize_SIM900();//lets get our Serial ready for action
+ 
+  
+     
+        
+     /*Place a Phone Call*/
+     do
+    {
+    _SIM900_print("ATD9094542118;\r\n");  //Here we are placing a call to number 93643XXXXX
+   
+    }while (_SIM900_waitResponse() != SIM900_OK); //wait till the ESP send back "OK"
+    __delay_ms(1500);
+        
+    while(1){  
+        if (_SIM900_waitResponse() == SIM900_RING) //Check if there is an incoming call
+        {
+          __delay_ms(4000);
+          _SIM900_print("ATH\r\n");
+          RB0=1;
+           if (_SIM900_waitResponse() == SIM900_RING)
+           {
+             __delay_ms(6000);
+             RB0=0;
+             _SIM900_print("ATH\r\n");
+            
+           }
+        }
+    }        
+            
+}
+/*
+ * File:   basic.c
+ * Author: Akash
+ *
+ * Created on December 19, 2017, 6:03 PM
+ */
+
+
+
+
+
+// CONFIG
+#pragma config FOSC = HS       // Oscillator Selection bits (HS oscillator)
+#pragma config WDTE = OFF       // Watchdog Timer Enable bit (WDT disabled)
+#pragma config PWRTE = OFF       // Power-up Timer Enable bit (PWRT enabled)
+#pragma config BOREN = OFF        // Brown-out Reset Enable bit (BOR enabled)
+#pragma config LVP = OFF        // Low-Voltage (Single-Supply) In-Circuit Serial Programming Enable bit (RB3 is digital I/O, HV on MCLR must be used for programming)
+#pragma config CPD = OFF        // Data EEPROM Memory Code Protection bit (Data EEPROM code protection off)
+#pragma config WRT = OFF        // Flash Program Memory Write Enable bits (Write protection off; all program memory may be written to by EECON control)
+#pragma config CP = OFF         // Flash Program Memory Code Protection bit (Code protection off)
+//End of CONFIG registers
+ 
+#define _XTAL_FREQ 20000000
+
+ 
+#define SIM900_OK 1
+#define SIM900_READY 2
+#define SIM900_FAIL 3
+#define SIM900_RING 4
+#define SIM900_NC 5
+#define SIM900_UNLINK 6
+
+#include <xc.h>
+ 
+// Wait for any response on the input
+inline unsigned char _SIM900_waitResponse(void);
+    int recv;
+    char p =1;
+ 
+
+//***Initialize UART for SIM900**//
+void Initialize_SIM900(void)
+{
+    //****Setting I/O pins for UART****//
+    TRISC6 = 0; // TX Pin set as output
+    TRISC7 = 1; // RX Pin set as input
+    TRISB0 = 0;
+    TRISB1 = 0;
+    RB0=0;
+    RB1=0;
+    //________I/O pins set __________//
+    
+    /**Initialize SPBRG register for required 
+    baud rate and set BRGH for fast baud_rate**/
+    SPBRG = 129; //SIM900 operates at 9600 Baud rate so 129
+    BRGH  = 1;  // for high baud_rate
+    //_________End of baud_rate setting_________//
+    
+    //****Enable Asynchronous serial port*******//
+    SYNC  = 0;    // Asynchronous
+    SPEN  = 1;    // Enable serial port pins
+    //_____Asynchronous serial port enabled_______//
+    //**Lets prepare for transmission & reception**//
+    TXEN  = 1;    // enable transmission
+    CREN  = 1;    // enable reception
+    //__UART module up and ready for transmission and reception__//
+    
+    //**Select 8-bit mode**//  
+    TX9   = 0;    // 8-bit reception selected
+    RX9   = 0;    // 8-bit reception mode selected
+    //__8-bit mode selected__//     
+}
+//________UART module Initialized__________//
+ 
+ 
+//**Function to send one byte of date to UART**//
+void _SIM900_putch(char bt)  
+{
+    while(!TXIF);  // hold the program till TX buffer is free
+    TXREG = bt; //Load the transmitter buffer with the received value
+}
+//_____________End of function________________//
+ 
+ 
+//**Function to get one byte of date from UART**//
+char _SIM900_getch()   
+{
+    if(OERR) // check for Error 
+    {
+        CREN = 0; //If error -> Reset 
+        CREN = 1; //If error -> Reset 
+    }
+    
+    while(!RCIF);  // hold the program till RX buffer is free
+    
+    return RCREG; //receive the value and send it to main function
+}
+//_____________End of function________________//
+ 
+ 
+//**Function to convert string to byte**//
+void SIM900_send_string(char* st_pt)
+{
+    while(*st_pt) //if there is a char
+        _SIM900_putch(*st_pt++); //process it as a byte data
+}
+//___________End of function______________//
+//**End of modified Codes**//
+ 
+void _SIM900_print(unsigned const char *ptr) {
+    while (*ptr != 0) {
+        _SIM900_putch(*ptr++);
+    }
+}
+ 
+inline unsigned char _SIM900_waitResponse(void) {
+    unsigned char so_far[6] = {0,0,0,0,0,0};
+    unsigned const char lengths[6] = {2,12,5,4,6,6};
+    unsigned const char* strings[6] = {"OK", "+CPIN: READY", "ERROR", "RING", "NO CARRIER", "Unlink"};
+    unsigned const char responses[6] = {SIM900_OK, SIM900_READY, SIM900_FAIL, SIM900_RING, SIM900_NC, SIM900_UNLINK};
+    unsigned char received;
+    unsigned char response;
+    char continue_loop = 1;
+    while (continue_loop) {
+        received = _SIM900_getch();
+        for (unsigned char i = 0; i < 6; i++) {
+            if (strings[i][so_far[i]] == received) {
+                so_far[i]++;
+                if (so_far[i] == lengths[i]) {
+                    response = responses[i];
+                    continue_loop = 0;
+                }
+            } else {
+                so_far[i] = 0;
+            }
+        }
+    }
+    return response;
+
+}
+ 
+void main()
+{   
+   
+    Initialize_SIM900();//lets get our Serial ready for action
+ 
+  
+     
+        
+     /*Place a Phone Call*/
+     do
+    {
+    _SIM900_print("ATD9094542118;\r\n");  //Here we are placing a call to number 93643XXXXX
+   
+    }while (_SIM900_waitResponse() != SIM900_OK); //wait till the ESP send back "OK"
+    __delay_ms(1500);
+        
+    while(1){  
+        if (_SIM900_waitResponse() == SIM900_RING) //Check if there is an incoming call
+        {
+          __delay_ms(4000);
+          _SIM900_print("ATH\r\n");
+          RB0=1;
+           if (_SIM900_waitResponse() == SIM900_RING)
+           {
+             __delay_ms(6000);
+             RB0=0;
+             _SIM900_print("ATH\r\n");
+            
+           }
+        }
+    }        
+            
+}

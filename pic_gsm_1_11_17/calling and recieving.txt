@@ -1,0 +1,14 @@
+
+        if (_SIM900_waitResponse() == SIM900_RING) //Check if there is an incoming call
+        {
+          __delay_ms(2000);
+          _SIM900_print("ATH\r\n");
+          RC4=0;
+           if (_SIM900_waitResponse() == SIM900_RING)
+           {
+            __delay_ms(3000);
+            _SIM900_print("ATH\r\n");
+            RC5=0;
+           }
+
+        }       

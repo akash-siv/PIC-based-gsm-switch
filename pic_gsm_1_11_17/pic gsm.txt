@@ -1,0 +1,216 @@
+ #include<pic.h> #define
+ 
+
+#include<pic.h>
+ 
+#define First_Line 0x80
+#define Second_Line 0xc0
+#define Curser_On  0x0f
+#define Curser_Off 0x0c
+#define Clear_Display 0x01
+#define Data_Port PORTD
+ 
+static bit   Lcd_rs  @((unsigned) &PORTC*8+4); 
+static bit   Lcd_en  @((unsigned) &PORTC*8+5);
+ 
+#define appl1 RB7
+#define appl2 RB6
+#define appl3 RB5
+#define appl4 RB4
+ 
+void gsm_init();
+void Lcd8_Init();
+void Lcd8_Command(unsigned char);
+void Lcd8_Write(unsigned char,unsigned char);
+void Lcd8_Display(unsigned char,const unsigned char*,unsigned int);
+void Delay(unsigned int);
+ 
+void Serial_Init(unsigned long int);
+void Serial_Out(unsigned char);
+void Serial_Conout(const unsigned char *,unsigned char);
+void Baudrate(unsigned long int);
+void Receive(unsigned char);
+ 
+unsigned char c[5],j;
+void main()
+{
+TRISB=0x00;
+TRISC=0xC0;
+TRISD=0x00;
+Lcd8_Init();
+Lcd8_Display(0x80,"HOME APPLIANCES:",16);
+Lcd8_Display(0xC0,"    CONTROL:    ",16); 
+Delay(65000);Delay(65000);
+Lcd8_Display(0xC0,"                ",16);
+Serial_Init(9600);
+gsm_init();
+Receive(1);
+while(1)
+{
+if(j>=2)
+{
+Receive(0);
+if(c[1]=='a'){appl1=0;Lcd8_Display(0xC0,"APPLIANCES 1:ON ",16);}
+if(c[1]=='b'){appl2=0;Lcd8_Display(0xC0,"APPLIANCES 2:ON ",16);}
+if(c[1]=='c'){appl3=0;Lcd8_Display(0xC0,"APPLIANCES 3:ON ",16);}
+if(c[1]=='d'){appl4=0;Lcd8_Display(0xC0,"APPLIANCES 4:ON ",16);}
+if(c[1]=='c'){appl1=1;Lcd8_Display(0xC0,"APPLIANCES 1:OFF",16);}
+if(c[1]=='d'){appl2=1;Lcd8_Display(0xC0,"APPLIANCES 2:OFF",16);}
+if(c[1]=='e'){appl3=1;Lcd8_Display(0xC0,"APPLIANCES 3:OFF",16);}
+if(c[1]=='f'){appl4=1;Lcd8_Display(0xC0,"APPLIANCES 4:OFF",16);}
+j=0;
+Receive(1);
+}
+}
+}
+ 
+void interrupt  timer1(void)
+{
+ if(RCIF)
+ {
+RCIF=0;
+c[j]=RCREG;
+if(c[0]=='*')j++;
+else j=0;
+ }
+}
+void gsm_init()
+{
+Serial_Conout("AT",2);
+Serial_Out(0x0d);Serial_Out(0x0a);
+Delay(65000);Delay(65000); 
+Serial_Conout("AT+CMGF=1",9);  
+Serial_Out(0x0d);Serial_Out(0x0a);
+Delay(65000);Delay(65000); 
+Serial_Conout("AT+CNMI=2,2,0,0,0",17);  
+Serial_Out(0x0d);Serial_Out(0x0a);
+Delay(65000);Delay(65000);
+}
+ 
+void Lcd8_Init()
+{
+Lcd8_Command(0x38); //to select function set
+Lcd8_Command(0x06); //entry mode set
+Lcd8_Command(0x0c); //display on
+Lcd8_Command(0x01); //clear display
+}
+ 
+void Lcd8_Command(unsigned char com)
+{
+Data_Port=com;
+Lcd_en=1;
+Lcd_rs=0;
+Delay(125);
+Lcd_en=0;
+Delay(125);
+}
+ 
+void Lcd8_Write(unsigned char com,unsigned char lr)
+{
+Lcd8_Command(com);
+ 
+Data_Port=lr; // Data 
+Lcd_en=1;
+Lcd_rs=1;
+Delay(125);
+Lcd_en=0;
+Delay(125);
+}
+ 
+void Lcd8_Display(unsigned char com,const unsigned char *word,unsigned int n)
+{
+unsigned char Lcd_i;
+ 
+for(Lcd_i=0;Lcd_i<n;Lcd_i++)
+{ 
+Lcd8_Write(com+Lcd_i,word[Lcd_i]);
+   }
+}
+ 
+void Delay(unsigned int del)
+{
+while(del--);
+}     
+ 
+void Serial_Init(unsigned long int baud)
+{  
+Baudrate(baud);
+SYNC = 0;      // asynchronous mode
+SPEN = 1;      // serial port enable
+TXEN = 1;      // tx enable
+GIE=1;
+PEIE=1;
+RCIE = 1;  // interrupt set
+CREN = 1;      // rx enable 
+}
+ 
+void Serial_Out(unsigned char val)
+{
+TXREG =val;
+while(!TXIF);
+TXIF = 0;
+}
+ 
+ 
+void Serial_Conout(const unsigned char *data,unsigned char n)
+{
+unsigned char ser_j;
+for(ser_j=0;ser_j<n;ser_j++)
+{
+Serial_Out(data[ser_j]);
+}
+}
+ 
+void Baudrate(unsigned long int baud)
+{
+if(baud==110) //Crystal Freq 1 Mhz
+{
+SPBRG = 141;          // for 110 baud rate
+BRGH = 0;      // baud rate low 
+}
+else if(baud==1200) //Crystal Freq 4 Mhz
+{
+SPBRG = 51;          // for 1200 baud rate
+BRGH = 0;      // baud rate high 
+}
+else if(baud==2400)
+{
+SPBRG = 25;          // for 2400 baud rate
+BRGH = 0;      // baud rate high 
+}
+else if(baud==4800)
+{
+SPBRG = 12;          // for 4800 baud rate
+BRGH = 0;      // baud rate high 
+}
+else if(baud==9600)
+{
+SPBRG = 25;          // for 9600 baud rate
+BRGH = 1;      // baud rate high 
+}
+else if(baud==57600)
+{
+SPBRG = 20;          // for 57600 baud rate
+BRGH = 1;      // baud rate high 
+}
+else if(baud==115200)
+{
+SPBRG = 10;          // for 115200 baud rate
+BRGH = 1;      // baud rate high 
+} 
+}
+ 
+ 
+void Receive(unsigned char rece)
+{
+if(rece==1)
+{
+RCIE = 1;  // interrupt set
+CREN = 1;      // rx enable 
+}
+else
+{
+RCIE = 0;  // interrupt set
+CREN = 0;      // rx enable 
+} 
+}
